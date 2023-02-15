@@ -1,3 +1,5 @@
+teeraform_code
+
 # Define the Azure provider
 provider "azurerm" {
   features {}
