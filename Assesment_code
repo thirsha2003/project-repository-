@@ -1,4 +1,6 @@
-teeraform_code
+1. #Create a Virtual Machine in the resource group along with virtual networks and subnets. Confirm the logins to VM after deploying the infrastructure.
+
+
 
 # Define the Azure provider
 provider "azurerm" {
@@ -101,3 +103,60 @@ resource "azurerm_subnet" "example" {
   virtual_network_name = azurerm_virtual_network.example.name
   address_prefixes     = ["10.0.1.0/24"]
   network_security_group_id = azurerm_network_security
+  
+  
+  
+ 2.  Write a custom module for multiple virtual machines deployment with the same configuration.
+ 
+ 
+ import os
+import azure.mgmt.compute as compute
+from azure.common.credentials import ServicePrincipalCredentials
+
+class VMDeployer:
+    def _init_(self, subscription_id, client_id, secret, tenant):
+        self.subscription_id = subscription_id
+        self.credentials = ServicePrincipalCredentials(
+            client_id=client_id,
+            secret=secret,
+            tenant=tenant
+        )
+        self.compute_client = compute.ComputeManagementClient(
+            self.credentials,
+            self.subscription_id
+        )
+
+    def create_vm(self, resource_group, location, vm_name, vm_size, username, password, image_reference):
+        # Define the basic parameters for the virtual machine
+        vm_parameters = {
+            'location': location,
+            'os_profile': {
+                'computer_name': vm_name,
+                'admin_username': username,
+                'admin_password': password
+            },
+            'hardware_profile': {
+                'vm_size': vm_size
+            },
+            'storage_profile': {
+                'image_reference': image_reference
+            },
+            'network_profile': {
+                'network_interfaces': [{
+                    'id': "/subscriptions/{}/resourceGroups/{}/providers/Microsoft.Network/networkInterfaces/{}-nic".format(
+                        self.subscription_id, resource_group, vm_name)
+                }]
+            }
+        }
+        # Create the virtual machine
+        async_vm_creation = self.compute_client.virtual_machines.create_or_update(
+            resource_group,
+            vm_name,
+            vm_parameters
+        )
+        async_vm_creation.wait()
+
+    def deploy_vms(self, resource_group, location, vm_count, vm_size, username, password, image_reference):
+        for i in range(vm_count):
+            vm_name = "vm-{}".format(i)
+            self.create_vm(resource_group, location, vm_name, vm_size, username, password, image_reference)
